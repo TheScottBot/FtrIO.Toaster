@@ -31,16 +31,21 @@ Open `http://localhost:8000`.
 
 ## Configuration
 
-The location of `appsettings.json` is set via an environment variable and a Docker volume mount in `docker-compose.yml`:
+Before running, update `docker-compose.yml` to point at the directory containing
+the `appsettings.json` of the app you have FtrIO installed in:
 
 ```yaml
-environment:
-  APPSETTINGS_PATH: /data/appsettings.json
 volumes:
-  - "/path/to/your/app:/data"
+  - "/path/to/your/ftrio/app:/data"   # ← replace this
 ```
 
-If `appsettings.json` lives on a different machine, mount it via a network share before pointing the volume at it. The file will be created automatically if it doesn't exist yet.
+The `APPSETTINGS_PATH` env var controls the exact filename inside that directory
+and defaults to `/data/appsettings.json` — you only need to change it if your
+file is named differently.
+
+If the app runs on a different machine, mount the directory over a network share
+first, then point the volume at the mount point. The file will be created
+automatically if it doesn't exist yet.
 
 ## appsettings.json Format
 
