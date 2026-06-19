@@ -33,6 +33,7 @@
   }
   header .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
   header .logo span { color: var(--accent); }
+  header .logo-group { display: flex; align-items: baseline; gap: 12px; }
   header .app-name {
     font-size: 0.8rem;
     font-weight: 600;
@@ -41,6 +42,7 @@
     padding: 3px 10px;
     border-radius: 99px;
     letter-spacing: 0.3px;
+    line-height: 1;
   }
   header .path-badge {
     margin-left: auto;
@@ -271,8 +273,10 @@
 <body>
 
 <header>
-  <div class="logo">Ftr<span>IO</span> Toaster</div>
-  <span class="app-name" id="appName" style="display:none"></span>
+  <div class="logo-group">
+    <div class="logo">Ftr<span>IO</span> Toaster</div>
+    <span class="app-name" id="appName" style="display:none"></span>
+  </div>
   <span class="health-dot" id="healthDot"></span>
   <code class="path-badge" id="pathBadge">loading…</code>
 </header>
