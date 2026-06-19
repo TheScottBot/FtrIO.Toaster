@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>FtrIO Toaster</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1f2937;
+    --border: #30363d;
+    --accent: #ff69b4;
+    --accent-dim: rgba(255,105,180,0.15);
+    --green: #22c55e;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --orange: #f97316;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  header .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
+  header .logo span { color: var(--accent); }
+  header .path-badge {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--muted);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: monospace;
+  }
+  header .health-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    display: inline-block;
+  }
+  header .health-dot.ok { background: var(--green); }
+  header .health-dot.err { background: var(--red); }
+
+  main { max-width: 860px; margin: 0 auto; padding: 32px 24px; }
+
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+  .toolbar h1 { font-size: 1.1rem; color: var(--muted); font-weight: 400; }
+  .toolbar h1 strong { color: var(--text); }
+
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #0d1117;
+    padding: 8px 18px;
+    font-weight: 600;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--text);
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--border); }
+  .btn-danger {
+    background: transparent;
+    color: var(--red);
+    padding: 6px 10px;
+    border: 1px solid transparent;
+  }
+  .btn-danger:hover { background: rgba(239,68,68,0.1); border-color: var(--red); }
+
+  /* Cards */
+  .toggle-list { display: flex; flex-direction: column; gap: 12px; }
+
+  .toggle-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px 20px;
+    align-items: center;
+  }
+  .toggle-card:hover { border-color: var(--accent); }
+
+  .toggle-name { font-weight: 600; font-size: 1rem; }
+  .toggle-type-badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 8px;
+  }
+  .badge-bool { background: rgba(34,197,94,0.15); color: var(--green); }
+  .badge-pct  { background: rgba(249,115,22,0.15); color: var(--orange); }
+  .badge-bg   { background: rgba(59,130,246,0.15); color: var(--blue); }
+
+  .toggle-controls { display: flex; align-items: center; gap: 10px; }
+
+  /* Bool switch */
+  .switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider-track {
+    position: absolute; inset: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    transition: background 0.2s;
+    cursor: pointer;
+  }
+  .slider-track::before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 3px; top: 3px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+  input:checked + .slider-track { background: rgba(108,99,255,0.25); border-color: var(--accent); }
+  input:checked + .slider-track::before { transform: translateX(22px); background: var(--accent); }
+
+  /* Pct slider */
+  .pct-wrap { display: flex; align-items: center; gap: 8px; }
+  .pct-wrap input[type=range] {
+    -webkit-appearance: none;
+    width: 140px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .pct-wrap input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+  .pct-num {
+    width: 68px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    color: var(--accent);
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-family: inherit;
+    text-align: right;
+    outline: none;
+  }
+  .pct-num:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+  .pct-unit { font-size: 0.9rem; font-weight: 600; color: var(--accent); }
+
+  /* Blue/Green */
+  .bg-toggle { display: flex; border-radius: 7px; overflow: hidden; border: 1px solid var(--border); }
+  .bg-toggle button {
+    padding: 5px 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 0;
+    background: var(--surface2);
+    color: var(--muted);
+    border: none;
+  }
+  .bg-toggle button.active-blue { background: rgba(59,130,246,0.2); color: var(--blue); }
+  .bg-toggle button.active-green { background: rgba(34,197,94,0.2); color: var(--green); }
+
+  /* Type switcher */
+  .type-switcher { display: flex; gap: 4px; }
+  .type-btn {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .type-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 64px 0;
+    color: var(--muted);
+  }
+  .empty .big { font-size: 2.5rem; margin-bottom: 12px; }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .modal h2 { font-size: 1.1rem; margin-bottom: 20px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: inherit;
+    outline: none;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 0.85rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    animation: slideIn 0.2s ease;
+    z-index: 200;
+  }
+  .toast.err { border-color: var(--red); color: var(--red); }
+  @keyframes slideIn { from { transform: translateY(16px); opacity: 0; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Ftr<span>IO</span> Toaster</div>
+  <span class="health-dot" id="healthDot"></span>
+  <code class="path-badge" id="pathBadge">loading…</code>
+</header>
+
+<main>
+  <div class="toolbar">
+    <h1>Feature Toggles &nbsp;<strong id="countLabel">—</strong></h1>
+    <button class="btn-primary" onclick="openAddModal()">+ Add Toggle</button>
+  </div>
+  <div class="toggle-list" id="toggleList"></div>
+</main>
+
+<!-- Add Modal -->
+<div class="modal-backdrop" id="addModal" style="display:none" onclick="if(event.target===this)closeAddModal()">
+  <div class="modal">
+    <h2>Add Toggle</h2>
+    <div class="field">
+      <label>Name</label>
+      <input id="newName" placeholder="e.g. NewCheckoutFlow" autocomplete="off"/>
+    </div>
+    <div class="field">
+      <label>Type</label>
+      <select id="newType" onchange="updateNewValueField()">
+        <option value="bool">Boolean (on/off)</option>
+        <option value="pct">Percentage Rollout</option>
+        <option value="bg">Blue / Green</option>
+      </select>
+    </div>
+    <div class="field" id="newValueField">
+      <label>Initial Value</label>
+      <select id="newBool">
+        <option value="true">Enabled (true)</option>
+        <option value="false">Disabled (false)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeAddModal()">Cancel</button>
+      <button class="btn-primary" onclick="addToggle()">Add</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let toggles = {};
+
+function detectType(val) {
+  if (typeof val === 'boolean') return 'bool';
+  if (typeof val === 'string' && val.endsWith('%')) return 'pct';
+  if (val === 'blue' || val === 'green') return 'bg';
+  return 'bool';
+}
+
+async function load() {
+  try {
+    const [t, h] = await Promise.all([
+      fetch('/api/toggles').then(r => r.json()),
+      fetch('/api/health').then(r => r.json()),
+    ]);
+    toggles = t;
+    document.getElementById('pathBadge').textContent = h.path;
+    const dot = document.getElementById('healthDot');
+    dot.className = 'health-dot ' + (h.exists ? 'ok' : 'err');
+    dot.title = h.exists ? 'File found' : 'File not found — will be created on first save';
+    render();
+  } catch(e) {
+    toast('Failed to load toggles', true);
+  }
+}
+
+function render() {
+  const list = document.getElementById('toggleList');
+  const keys = Object.keys(toggles);
+  document.getElementById('countLabel').textContent = keys.length + ' toggle' + (keys.length !== 1 ? 's' : '');
+
+  if (keys.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="big">🔘</div>No toggles yet — add one above.</div>';
+    return;
+  }
+
+  list.innerHTML = keys.map(name => {
+    const val = toggles[name];
+    const type = detectType(val);
+    const badge = type === 'bool' ? '<span class="toggle-type-badge badge-bool">Bool</span>'
+                : type === 'pct'  ? '<span class="toggle-type-badge badge-pct">%</span>'
+                : '<span class="toggle-type-badge badge-bg">B/G</span>';
+    return `<div class="toggle-card" data-name="${esc(name)}">
+      <div>
+        <span class="toggle-name">${esc(name)}</span>${badge}
+        <div class="type-switcher" style="margin-top:8px">
+          <button class="type-btn ${type==='bool'?'active':''}" onclick="changeType('${esc(name)}','bool')">Bool</button>
+          <button class="type-btn ${type==='pct'?'active':''}" onclick="changeType('${esc(name)}','pct')">%</button>
+          <button class="type-btn ${type==='bg'?'active':''}" onclick="changeType('${esc(name)}','bg')">B/G</button>
+        </div>
+      </div>
+      <div class="toggle-controls">
+        ${controlHtml(name, val, type)}
+        <button class="btn-danger" onclick="removeToggle('${esc(name)}')" title="Delete">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function controlHtml(name, val, type) {
+  if (type === 'bool') {
+    const checked = val === true ? 'checked' : '';
+    return `<label class="switch">
+      <input type="checkbox" ${checked} onchange="saveBool('${esc(name)}',this.checked)"/>
+      <span class="slider-track"></span>
+    </label>`;
+  }
+  if (type === 'pct') {
+    const num = parseInt(String(val)) || 0;
+    const id = 'pct-' + name.replace(/\W/g,'_');
+    return `<div class="pct-wrap">
+      <input type="range" min="0" max="100" value="${num}" id="range-${id}"
+        oninput="document.getElementById('num-${id}').value=this.value"
+        onchange="savePct('${esc(name)}',this.value)"/>
+      <input type="number" min="0" max="100" value="${num}" id="num-${id}" class="pct-num"
+        oninput="var v=Math.min(100,Math.max(0,this.value||0));document.getElementById('range-${id}').value=v"
+        onchange="savePct('${esc(name)}',this.value)"/>
+      <span class="pct-unit">%</span>
+    </div>`;
+  }
+  // blue/green
+  const isBlue = val === 'blue';
+  return `<div class="bg-toggle">
+    <button class="${isBlue?'active-blue':''}" onclick="saveBG('${esc(name)}','blue')">Blue</button>
+    <button class="${!isBlue?'active-green':''}" onclick="saveBG('${esc(name)}','green')">Green</button>
+  </div>`;
+}
+
+function esc(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function save(name, value) {
+  try {
+    await fetch(`/api/toggles/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({value}),
+    });
+    toggles[name] = value;
+    render();
+  } catch(e) { toast('Save failed', true); }
+}
+
+function saveBool(name, checked) { save(name, checked); }
+function savePct(name, v) { save(name, v + '%'); }
+function saveBG(name, color) { save(name, color); }
+
+function changeType(name, type) {
+  const defaults = { bool: false, pct: '0%', bg: 'blue' };
+  save(name, defaults[type]);
+}
+
+async function removeToggle(name) {
+  if (!confirm(`Delete toggle "${name}"?`)) return;
+  try {
+    await fetch(`/api/toggles/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    delete toggles[name];
+    render();
+    toast(`"${name}" deleted`);
+  } catch(e) { toast('Delete failed', true); }
+}
+
+// ── Add Modal ────────────────────────────────────────────────────────────────
+
+function openAddModal() {
+  document.getElementById('newName').value = '';
+  document.getElementById('newType').value = 'bool';
+  updateNewValueField();
+  document.getElementById('addModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('newName').focus(), 50);
+}
+function closeAddModal() { document.getElementById('addModal').style.display = 'none'; }
+
+function updateNewValueField() {
+  const type = document.getElementById('newType').value;
+  const field = document.getElementById('newValueField');
+  if (type === 'bool') {
+    field.innerHTML = `<label>Initial Value</label>
+      <select id="newBool">
+        <option value="true">Enabled (true)</option>
+        <option value="false">Disabled (false)</option>
+      </select>`;
+  } else if (type === 'pct') {
+    field.innerHTML = `<label>Initial Percentage</label>
+      <input id="newPct" type="number" min="0" max="100" value="0" placeholder="0–100"/>`;
+  } else {
+    field.innerHTML = `<label>Initial Slot</label>
+      <select id="newBG">
+        <option value="blue">Blue</option>
+        <option value="green">Green</option>
+      </select>`;
+  }
+}
+
+async function addToggle() {
+  const name = document.getElementById('newName').value.trim();
+  if (!name) { toast('Enter a toggle name', true); return; }
+  if (toggles.hasOwnProperty(name)) { toast('Toggle already exists', true); return; }
+  const type = document.getElementById('newType').value;
+  let value;
+  if (type === 'bool') value = document.getElementById('newBool').value === 'true';
+  else if (type === 'pct') value = (document.getElementById('newPct').value || '0') + '%';
+  else value = document.getElementById('newBG').value;
+  closeAddModal();
+  await save(name, value);
+  toast(`"${name}" added`);
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+
+let toastTimer;
+function toast(msg, err = false) {
+  clearTimeout(toastTimer);
+  let el = document.getElementById('toastEl');
+  if (!el) { el = document.createElement('div'); el.id = 'toastEl'; document.body.appendChild(el); }
+  el.className = 'toast' + (err ? ' err' : '');
+  el.textContent = msg;
+  el.style.display = 'block';
+  toastTimer = setTimeout(() => { el.style.display = 'none'; }, 2500);
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAddModal(); });
+
+load();
+</script>
+</body>
+</html>
