@@ -4,10 +4,33 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Path inside the container where appsettings.json lives.
-      # Change the volume mount below to point at the real file on your host.
-      APPSETTINGS_PATH: /data/appsettings.json
-      APP_NAME: "PlaygroundConsole"  # e.g. "My API" — displayed in the UI header
+      # Display name shown in the UI header.
+      APP_NAME: "My Application"
+
+      # APPSETTINGS_PATH points to the base environment's appsettings.json.
+      # Add APPSETTINGS_PATH_<NAME> for each additional environment you want
+      # in the UI dropdown. Every environment is independent — point each one
+      # directly at that environment's own appsettings.json.
+      APPSETTINGS_PATH: /env/base/appsettings.json
+      APPSETTINGS_PATH_STAGING: /env/staging/appsettings.json
+      # APPSETTINGS_PATH_UAT: /env/uat/appsettings.json
+      # APPSETTINGS_PATH_PRODUCTION: /env/production/appsettings.json
+
     volumes:
-      - "/path/to/your/app:/data"
+      # Each volume maps a host path to a container path referenced above.
+      # Use forward slashes even on Windows. Remote machines can be mounted
+      # as UNC paths or network shares on the Docker host.
+      - type: bind
+        source: /path/to/your/app
+        target: /env/base
+      - type: bind
+        source: /path/to/your/staging/app
+        target: /env/staging
+      # - type: bind
+      #   source: /path/to/your/uat/app
+      #   target: /env/uat
+      # - type: bind
+      #   source: /path/to/your/production/app
+      #   target: /env/production
+
     restart: unless-stopped
