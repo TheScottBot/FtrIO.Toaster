@@ -1,13 +1,18 @@
 services:
   toaster:
     build: .
+    # When using oauth2-proxy, remove the 'ports' block below and use
+    # 'expose' instead — Toaster should not be publicly reachable directly.
     ports:
       - "8000:8000"
+    # expose:
+    #   - "8000"
     environment:
       # Display name shown in the UI header.
-      APP_NAME: "PlaygroundConsole"
+      APP_NAME: "My Application"
 
       # Basic auth — set both to enable. Leave blank to disable (local dev only).
+      # Not needed when using oauth2-proxy — leave blank and let the proxy handle auth.
       AUTH_USERNAME: ""
       AUTH_PASSWORD: ""
 
@@ -17,8 +22,7 @@ services:
       # app's own appsettings.json. Every environment is independent; there
       # is no merging or layering between them.
       APPSETTINGS_PATH: /env/base/appsettings.json
-      APPSETTINGS_PATH_STAGING: /env/staging/appsettings.json
-      APPSETTINGS_PATH_DEVELOPMENT: /env/base/appsettings.Development.json
+      # APPSETTINGS_PATH_STAGING: /env/staging/appsettings.json
       # APPSETTINGS_PATH_PRODUCTION: /env/production/appsettings.json
 
     volumes:
@@ -27,11 +31,46 @@ services:
       - type: bind
         source: /path/to/your/app
         target: /env/base
-      - type: bind
-        source: /path/to/your/staging/app
-        target: /env/staging
       # - type: bind
-      #   source: C:/path/to/production/app
+      #   source: /path/to/your/staging/app
+      #   target: /env/staging
+      # - type: bind
+      #   source: /path/to/your/production/app
       #   target: /env/production
 
     restart: unless-stopped
+
+  # ── OAuth2 Proxy (optional) ────────────────────────────────────────────────
+  # Uncomment this entire block to enable SSO via Google, Microsoft, GitHub,
+  # GitLab, or any OIDC-compatible provider.
+  #
+  # When enabled:
+  #   - Change 'ports' on the toaster service to 'expose' (see above)
+  #   - Access Toaster via http://localhost:4180 instead of :8000
+  #   - The proxy handles sign-in and only forwards authenticated requests
+  #
+  # oauth2-proxy:
+  #   image: quay.io/oauth2-proxy/oauth2-proxy:latest
+  #   ports:
+  #     - "4180:4180"
+  #   environment:
+  #     # Provider — swap 'google' for 'github', 'azure', 'gitlab', 'oidc', etc.
+  #     OAUTH2_PROXY_PROVIDER: google
+  #
+  #     # From your Google Cloud Console OAuth2 app (or equivalent for other providers).
+  #     OAUTH2_PROXY_CLIENT_ID: <your-client-id>
+  #     OAUTH2_PROXY_CLIENT_SECRET: <your-client-secret>
+  #
+  #     # Random 32-byte secret used to sign session cookies.
+  #     # Generate with: openssl rand -base64 32
+  #     OAUTH2_PROXY_COOKIE_SECRET: <random-32-byte-secret>
+  #
+  #     # Restrict access to a specific email domain (e.g. your company).
+  #     # Use OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE for an explicit allowlist instead.
+  #     OAUTH2_PROXY_EMAIL_DOMAINS: yourcompany.com
+  #
+  #     OAUTH2_PROXY_UPSTREAMS: http://toaster:8000
+  #     OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+  #   depends_on:
+  #     - toaster
+  #   restart: unless-stopped

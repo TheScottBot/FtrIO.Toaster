@@ -101,6 +101,34 @@ volumes:
 
 Remote machines must be reachable as a network share or mount point on the Docker host before the container starts.
 
+## Authentication
+
+### Basic Auth
+
+Set `AUTH_USERNAME` and `AUTH_PASSWORD` in `docker-compose.yml` to enable HTTP Basic Auth. The browser will prompt for credentials on every new session. Leave either variable blank to disable — suitable for local dev only.
+
+### SSO / Identity Providers (Google, Microsoft, GitHub, GitLab, OIDC)
+
+For team deployments, use [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) as a sidecar. It handles the full sign-in flow with your identity provider and forwards authenticated requests to Toaster. No code changes to Toaster are required.
+
+`docker-compose.yml` includes a commented-out `oauth2-proxy` service block. To enable it:
+
+1. Uncomment the `oauth2-proxy` service
+2. Switch the `toaster` service from `ports` to `expose` so it is no longer publicly reachable
+3. Fill in your provider credentials:
+
+```yaml
+OAUTH2_PROXY_PROVIDER: google           # or github, azure, gitlab, oidc, …
+OAUTH2_PROXY_CLIENT_ID: <client-id>
+OAUTH2_PROXY_CLIENT_SECRET: <secret>
+OAUTH2_PROXY_COOKIE_SECRET: <openssl rand -base64 32>
+OAUTH2_PROXY_EMAIL_DOMAINS: yourcompany.com
+```
+
+4. Access Toaster via `http://localhost:4180` — the proxy will redirect unauthenticated users to your provider's sign-in page.
+
+To restrict by individual email addresses instead of a domain, replace `OAUTH2_PROXY_EMAIL_DOMAINS` with `OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE` pointing to a mounted file containing one address per line.
+
 ## appsettings.json Format
 
 ```json
