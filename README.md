@@ -1,4 +1,6 @@
-![FtrIO Toaster](app/static/ftrio-banner.png)
+<p align="center">
+  <img src="app/static/ftrio-banner.png" alt="FtrIO Toaster" width="600"/>
+</p>
 
 # FtrIO Toaster
 
@@ -17,7 +19,7 @@ It's also a nod to the Dungeon Master who runs our D&D sessions. Every good camp
 - **Blue/Green** deployment switching
 - Change toggle type at any time
 - Add and delete toggles
-- Reads and writes directly to your `appsettings.json`, preserving all other config keys
+- Implements FtrIO's buffer logic — changes are staged in memory and flushed atomically to `appsettings.json` on the `FlushInterval` defined in your config, exactly as a native FtrIO provider would
 
 ## Getting Started
 
@@ -36,7 +38,9 @@ the `appsettings.json` of the app you have FtrIO installed in:
 
 ```yaml
 volumes:
-  - "/path/to/your/ftrio/app:/data"   # ← replace this
+  - type: bind
+    source: /path/to/your/ftrio/app
+    target: /data
 ```
 
 Two env vars control behaviour:
