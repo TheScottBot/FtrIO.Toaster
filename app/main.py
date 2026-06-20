@@ -4,47 +4,123 @@ import tempfile
 import threading
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-APPSETTINGS_PATH = Path(os.environ.get("APPSETTINGS_PATH", "/data/appsettings.json"))
 APP_NAME = os.environ.get("APP_NAME", "")
+
+def _build_env_map() -> dict[str, Path]:
+    """
+    Build the environment → file path map from environment variables.
+    APPSETTINGS_PATH       → "Base"
+    APPSETTINGS_PATH_FOO   → "Foo"
+    APPSETTINGS_PATH_MY_ENV → "My_Env"  (underscores preserved as-is)
+    """
+    env_map: dict[str, Path] = {}
+    prefix = "APPSETTINGS_PATH"
+    for key, val in os.environ.items():
+        if key == prefix:
+            env_map["Base"] = Path(val)
+        elif key.startswith(prefix + "_"):
+            name = key[len(prefix) + 1:].title().replace("_", " ").strip()
+            env_map[name] = Path(val)
+    if "Base" not in env_map:
+        env_map["Base"] = Path("/data/appsettings.json")
+    return env_map
+
+# Resolved once at startup; immutable thereafter.
+ENV_MAP: dict[str, Path] = _build_env_map()
+APPSETTINGS_PATH = ENV_MAP["Base"]
+
+
+def _effective_file(env: str) -> Path:
+    """The actual file path that will be read/written for this environment.
+    Always the explicitly configured path — never derived from the env name."""
+    return ENV_MAP[env]
+
+
+def _dir_identity(path: Path) -> object:
+    """
+    Return a hashable identity for a directory that is the same even when the
+    same host directory is mounted at two different container paths.
+    Falls back to the resolved path string if stat is unavailable.
+    """
+    try:
+        s = os.stat(path)
+        return (s.st_dev, s.st_ino)
+    except OSError:
+        return str(path.resolve())
+
+
+def _build_dir_warnings() -> list[str]:
+    """
+    Warn only when two or more environments resolve to the exact same physical
+    file — writes from one would silently overwrite the other.
+    Sharing a directory is valid (centralised config) and produces no warning.
+    """
+    from collections import defaultdict
+
+    by_file: dict[object, list[str]] = defaultdict(list)
+    for env in ENV_MAP:
+        f = _effective_file(env)
+        key = _dir_identity(f)  # reuse inode logic on the file itself
+        by_file[key].append(env)
+
+    warnings = []
+    for file_id, envs in by_file.items():
+        if len(envs) < 2:
+            continue
+        f = _effective_file(envs[0])
+        names = ", ".join(f'"{e}"' for e in envs)
+        warnings.append(
+            f"Environments {names} all point to the same file ({f.name}). "
+            f"Writes from any of these environments will overwrite each other."
+        )
+    return warnings
+
+DIR_WARNINGS: list[str] = _build_dir_warnings()
 
 _lock = threading.Lock()
 
-# In-memory buffer — staged changes waiting for the next flush tick.
-# Keys are toggle names; values are the staged toggle value (or a sentinel
-# for deletes). Mirrors the ConcurrentDictionary in FtrIO's ToggleProviderBuffer.
+# Buffer keyed by environment name ("Base" or e.g. "Staging").
+# Each value is a dict of toggle name → staged value (or _DELETED sentinel).
 _DELETED = object()
-_buffer: dict = {}
+_buffer: dict[str, dict] = {}
 _flush_timer: threading.Timer | None = None
 
 app = FastAPI(title="FtrIO Toaster")
 
 
+# ── File resolution ───────────────────────────────────────────────────────────
+
+def _env_path(env: str) -> Path:
+    if env not in ENV_MAP:
+        raise KeyError(f"Unknown environment: {env}")
+    return _effective_file(env)
+
+
+def _discover_environments() -> list[str]:
+    return list(ENV_MAP.keys())
+
+
 # ── File I/O ──────────────────────────────────────────────────────────────────
 
-def read_file() -> dict:
-    if not APPSETTINGS_PATH.exists():
+def _read_file(path: Path) -> dict:
+    if not path.exists():
         return {}
-    with open(APPSETTINGS_PATH, "r", encoding="utf-8-sig") as f:
+    with open(path, "r", encoding="utf-8-sig") as f:
         return json.load(f)
 
 
-def _atomic_write(data: dict) -> None:
-    """Write to a temp file then atomically rename, matching FtrIO's buffer flush."""
-    APPSETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(
-        dir=APPSETTINGS_PATH.parent,
-        prefix=".appsettings_tmp_",
-        suffix=".json",
-    )
+def _atomic_write(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".appsettings_tmp_", suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
-        os.replace(tmp, APPSETTINGS_PATH)  # atomic on same filesystem
+        os.replace(tmp, path)
     except Exception:
         try:
             os.unlink(tmp)
@@ -53,29 +129,35 @@ def _atomic_write(data: dict) -> None:
         raise
 
 
+def _read_merged_toggles(env: str) -> dict:
+    """Each environment is an independent file — read it directly, no merging."""
+    return _read_file(_env_path(env)).get("Toggles", {})
+
+
 # ── Buffer / flush ─────────────────────────────────────────────────────────────
 
 def _flush_interval_seconds() -> float:
-    """Read FlushInterval from the config file, defaulting to 5 (FtrIO's default)."""
     try:
-        data = read_file()
+        data = _read_file(APPSETTINGS_PATH)
         return float(data.get("FtrIO", {}).get("FlushInterval", 5))
     except Exception:
         return 5.0
 
 
 def _flush() -> None:
-    """Apply staged buffer to appsettings.json and schedule the next tick."""
     global _buffer, _flush_timer
 
     with _lock:
-        staged = _buffer.copy()
+        snapshot = {env: changes.copy() for env, changes in _buffer.items()}
         _buffer = {}
 
-    if staged:
+    for env, staged in snapshot.items():
+        if not staged:
+            continue
+        path = _env_path(env)
         try:
             with _lock:
-                data = read_file()
+                data = _read_file(path)
             toggles = data.get("Toggles", {})
             for name, value in staged.items():
                 if value is _DELETED:
@@ -83,13 +165,12 @@ def _flush() -> None:
                 else:
                     toggles[name] = value
             data["Toggles"] = toggles
-            _atomic_write(data)
+            _atomic_write(path, data)
         except Exception:
-            # Re-stage on failure so values aren't lost
             with _lock:
                 merged = staged.copy()
-                merged.update(_buffer)
-                _buffer = merged
+                merged.update(_buffer.get(env, {}))
+                _buffer[env] = merged
 
     _schedule_flush()
 
@@ -111,25 +192,32 @@ def startup() -> None:
 def shutdown() -> None:
     if _flush_timer:
         _flush_timer.cancel()
-    _flush()  # final flush on shutdown, matching buffer.Dispose()
+    _flush()
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
 
-@app.get("/api/toggles")
-def list_toggles():
-    """Source of truth is always the file; merge staged buffer on top for live preview."""
-    with _lock:
-        data = read_file()
-        staged = _buffer.copy()
+@app.get("/api/environments")
+def list_environments():
+    return _discover_environments()
 
-    toggles = data.get("Toggles", {})
+
+@app.get("/api/toggles")
+def list_toggles(env: str = Query(default="Base")):
+    """
+    Returns the merged effective toggle set for the given environment,
+    with staged buffer changes applied on top.
+    """
+    with _lock:
+        merged = _read_merged_toggles(env)
+        staged = _buffer.get(env, {}).copy()
+
     for name, value in staged.items():
         if value is _DELETED:
-            toggles.pop(name, None)
+            merged.pop(name, None)
         else:
-            toggles[name] = value
-    return toggles
+            merged[name] = value
+    return merged
 
 
 class ToggleValue(BaseModel):
@@ -137,32 +225,38 @@ class ToggleValue(BaseModel):
 
 
 @app.put("/api/toggles/{name}")
-def upsert_toggle(name: str, body: ToggleValue):
+def upsert_toggle(name: str, body: ToggleValue, env: str = Query(default="Base")):
     with _lock:
-        _buffer[name] = body.value
+        _buffer.setdefault(env, {})[name] = body.value
     return {"ok": True}
 
 
 @app.delete("/api/toggles/{name}")
-def delete_toggle(name: str):
+def delete_toggle(name: str, env: str = Query(default="Base")):
     with _lock:
-        data = read_file()
-        in_file = name in data.get("Toggles", {})
-        in_buffer = name in _buffer and _buffer[name] is not _DELETED
-        if not in_file and not in_buffer:
+        merged = _read_merged_toggles(env)
+        staged = _buffer.get(env, {})
+        in_merged = name in merged
+        in_buffer = name in staged and staged[name] is not _DELETED
+        if not in_merged and not in_buffer:
             raise HTTPException(status_code=404, detail="Toggle not found")
-        _buffer[name] = _DELETED
+        _buffer.setdefault(env, {})[name] = _DELETED
     return {"ok": True}
 
 
 @app.get("/api/health")
 def health():
+    pending = sum(
+        sum(1 for v in changes.values() if v is not _DELETED)
+        for changes in _buffer.values()
+    )
     return {
         "path": str(APPSETTINGS_PATH),
         "exists": APPSETTINGS_PATH.exists(),
         "app_name": APP_NAME,
         "flush_interval": _flush_interval_seconds(),
-        "pending_changes": sum(1 for v in _buffer.values() if v is not _DELETED),
+        "pending_changes": pending,
+        "warnings": DIR_WARNINGS,
     }
 
 

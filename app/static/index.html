@@ -69,9 +69,29 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 24px;
+    gap: 12px;
   }
   .toolbar h1 { font-size: 1.1rem; color: var(--muted); font-weight: 400; }
   .toolbar h1 strong { color: var(--text); }
+  .toolbar-right { display: flex; align-items: center; gap: 10px; }
+
+  .env-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 0.875rem;
+    font-family: inherit;
+    padding: 7px 28px 7px 12px;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b949e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+  .env-select:focus { border-color: var(--accent); }
 
   button {
     cursor: pointer;
@@ -255,6 +275,21 @@
   .field input:focus, .field select:focus { border-color: var(--accent); }
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
+  .warning-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: rgba(249,115,22,0.08);
+    border: 1px solid rgba(249,115,22,0.35);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    color: var(--orange);
+    margin-bottom: 8px;
+  }
+  .warning-item:last-child { margin-bottom: 0; }
+  .warning-icon { flex-shrink: 0; font-size: 1rem; line-height: 1.4; }
+
   .toast {
     position: fixed; bottom: 24px; right: 24px;
     background: var(--surface);
@@ -284,8 +319,14 @@
 <main>
   <div class="toolbar">
     <h1>Feature Toggles &nbsp;<strong id="countLabel">—</strong></h1>
-    <button class="btn-primary" onclick="openAddModal()">+ Add Toggle</button>
+    <div class="toolbar-right">
+      <select class="env-select" id="envSelect" onchange="onEnvChange()">
+        <option value="Base">Base</option>
+      </select>
+      <button class="btn-primary" onclick="openAddModal()">+ Add Toggle</button>
+    </div>
   </div>
+  <div id="warningBanner" style="display:none; margin-bottom:16px"></div>
   <div class="toggle-list" id="toggleList"></div>
 </main>
 
@@ -321,6 +362,7 @@
 
 <script>
 let toggles = {};
+let currentEnv = 'Base';
 
 function detectType(val) {
   if (typeof val === 'boolean') return 'bool';
@@ -329,20 +371,53 @@ function detectType(val) {
   return 'bool';
 }
 
+function envParam() { return `?env=${encodeURIComponent(currentEnv)}`; }
+
+async function loadEnvironments() {
+  try {
+    const envs = await fetch('/api/environments').then(r => r.json());
+    const sel = document.getElementById('envSelect');
+    sel.innerHTML = envs.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
+    sel.value = currentEnv;
+  } catch(e) { /* non-fatal */ }
+}
+
+function onEnvChange() {
+  currentEnv = document.getElementById('envSelect').value;
+  loadToggles();
+}
+
+async function loadToggles() {
+  try {
+    toggles = await fetch('/api/toggles' + envParam()).then(r => r.json());
+    render();
+  } catch(e) {
+    toast('Failed to load toggles', true);
+  }
+}
+
 async function load() {
   try {
-    const [t, h] = await Promise.all([
-      fetch('/api/toggles').then(r => r.json()),
+    const [h] = await Promise.all([
       fetch('/api/health').then(r => r.json()),
+      loadEnvironments(),
     ]);
-    toggles = t;
     document.getElementById('pathBadge').textContent = h.path;
     const appNameEl = document.getElementById('appName');
     if (h.app_name) { appNameEl.textContent = h.app_name; appNameEl.style.display = 'inline'; }
     const dot = document.getElementById('healthDot');
     dot.className = 'health-dot ' + (h.exists ? 'ok' : 'err');
     dot.title = h.exists ? 'File found' : 'File not found — will be created on first save';
-    render();
+    const banner = document.getElementById('warningBanner');
+    if (h.warnings && h.warnings.length > 0) {
+      banner.innerHTML = h.warnings.map(w =>
+        `<div class="warning-item"><span class="warning-icon">⚠️</span><span>${esc(w)}</span></div>`
+      ).join('');
+      banner.style.display = 'block';
+    } else {
+      banner.style.display = 'none';
+    }
+    await loadToggles();
   } catch(e) {
     toast('Failed to load toggles', true);
   }
@@ -414,7 +489,7 @@ function esc(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 
 async function save(name, value) {
   try {
-    await fetch(`/api/toggles/${encodeURIComponent(name)}`, {
+    await fetch(`/api/toggles/${encodeURIComponent(name)}${envParam()}`, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({value}),
@@ -436,7 +511,7 @@ function changeType(name, type) {
 async function removeToggle(name) {
   if (!confirm(`Delete toggle "${name}"?`)) return;
   try {
-    await fetch(`/api/toggles/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    await fetch(`/api/toggles/${encodeURIComponent(name)}${envParam()}`, { method: 'DELETE' });
     delete toggles[name];
     render();
     toast(`"${name}" deleted`);
@@ -505,7 +580,7 @@ function toast(msg, err = false) {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAddModal(); });
 
 load();
-setInterval(load, 60_000);
+setInterval(loadToggles, 60_000);
 </script>
 </body>
 </html>

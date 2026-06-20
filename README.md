@@ -28,6 +28,7 @@ It's also a nod to the Dungeon Master who runs our D&D sessions. Every good camp
 - Change toggle type at any time
 - Add and delete toggles
 - Implements FtrIO's buffer logic — changes are staged in memory and flushed atomically to `appsettings.json` on the `FlushInterval` defined in your config, exactly as a native FtrIO provider would
+- Multi-environment support — manage any number of environments from a single UI instance
 
 ## Getting Started
 
@@ -41,26 +42,60 @@ Open `http://localhost:8000`.
 
 ## Configuration
 
-Before running, update `docker-compose.yml` to point at the directory containing
-the `appsettings.json` of the app you have FtrIO installed in:
-
-```yaml
-volumes:
-  - type: bind
-    source: /path/to/your/ftrio/app
-    target: /data
-```
-
-Two env vars control behaviour:
+Two env vars control general behaviour:
 
 | Variable | Default | Description |
 |---|---|---|
-| `APPSETTINGS_PATH` | `/data/appsettings.json` | Full path to the config file inside the container |
-| `APP_NAME` | *(empty)* | Display name shown in the UI header — useful when running multiple Toaster instances for different products |
+| `APPSETTINGS_PATH` | `/data/appsettings.json` | Path to the base environment's config file inside the container |
+| `APP_NAME` | *(empty)* | Display name shown in the UI header |
 
-If the app runs on a different machine, mount the directory over a network share
-first, then point the volume at the mount point. The file will be created
-automatically if it doesn't exist yet.
+### Multiple Environments
+
+Toaster supports any number of environments via `APPSETTINGS_PATH_<NAME>` env vars. Each one registers an environment in the UI dropdown and points directly at that environment's own `appsettings.json`. Every environment is fully independent — there is no merging or layering between them.
+
+Each env var needs a matching volume mount. The name shown in the dropdown is derived from the variable suffix: `APPSETTINGS_PATH_STAGING` → `Staging`, `APPSETTINGS_PATH_MY_SERVICE` → `My Service`.
+
+**Separate locations (different servers or machines):**
+
+```yaml
+environment:
+  APPSETTINGS_PATH:            /env/local/appsettings.json
+  APPSETTINGS_PATH_STAGING:    /env/staging/appsettings.json
+  APPSETTINGS_PATH_PRODUCTION: /env/production/appsettings.json
+
+volumes:
+  - { type: bind, source: C:/local/app,        target: /env/local }
+  - { type: bind, source: //staging-server/app, target: /env/staging }
+  - { type: bind, source: //prod-server/app,    target: /env/production }
+```
+
+**Same location (overlay files on one machine):**
+
+```yaml
+environment:
+  APPSETTINGS_PATH:              /env/app/appsettings.json
+  APPSETTINGS_PATH_STAGING:      /env/app/appsettings.Staging.json
+  APPSETTINGS_PATH_UAT:          /env/app/appsettings.UAT.json
+
+volumes:
+  - { type: bind, source: C:/local/app, target: /env/app }
+```
+
+**Mix of both:**
+
+```yaml
+environment:
+  APPSETTINGS_PATH:              /env/local/appsettings.json
+  APPSETTINGS_PATH_STAGING:      /env/local/appsettings.Staging.json
+  APPSETTINGS_PATH_UAT:          /env/local/appsettings.UAT.json
+  APPSETTINGS_PATH_PRODUCTION:   /env/production/appsettings.json
+
+volumes:
+  - { type: bind, source: C:/local/app,        target: /env/local }
+  - { type: bind, source: //prod-server/app,    target: /env/production }
+```
+
+Remote machines must be reachable as a network share or mount point on the Docker host before the container starts.
 
 ## appsettings.json Format
 
