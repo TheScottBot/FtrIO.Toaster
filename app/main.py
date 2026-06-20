@@ -1,15 +1,40 @@
 import json
 import os
+import secrets
 import tempfile
 import threading
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 APP_NAME = os.environ.get("APP_NAME", "")
+AUTH_USERNAME = os.environ.get("AUTH_USERNAME", "")
+AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
+_auth_enabled = bool(AUTH_USERNAME and AUTH_PASSWORD)
+
+_security = HTTPBasic(realm="FtrIO Toaster", auto_error=False)
+
+def require_auth(credentials: HTTPBasicCredentials | None = Depends(_security)):
+    if not _auth_enabled:
+        return
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": 'Basic realm="FtrIO Toaster"'},
+        )
+    valid_user = secrets.compare_digest(credentials.username.encode(), AUTH_USERNAME.encode())
+    valid_pass = secrets.compare_digest(credentials.password.encode(), AUTH_PASSWORD.encode())
+    if not (valid_user and valid_pass):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": 'Basic realm="FtrIO Toaster"'},
+        )
 
 def _build_env_map() -> dict[str, Path]:
     """
@@ -90,7 +115,7 @@ _DELETED = object()
 _buffer: dict[str, dict] = {}
 _flush_timer: threading.Timer | None = None
 
-app = FastAPI(title="FtrIO Toaster")
+app = FastAPI(title="FtrIO Toaster", dependencies=[Depends(require_auth)])
 
 
 # ── File resolution ───────────────────────────────────────────────────────────

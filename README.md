@@ -48,6 +48,10 @@ Two env vars control general behaviour:
 |---|---|---|
 | `APPSETTINGS_PATH` | `/data/appsettings.json` | Path to the base environment's config file inside the container |
 | `APP_NAME` | *(empty)* | Display name shown in the UI header |
+| `AUTH_USERNAME` | *(empty)* | Basic auth username — set alongside `AUTH_PASSWORD` to enable |
+| `AUTH_PASSWORD` | *(empty)* | Basic auth password — set alongside `AUTH_USERNAME` to enable |
+
+Auth is disabled when either variable is unset, which is fine for local dev. For any shared or production-accessible deployment, always set both. Credentials are compared in constant time to prevent timing attacks.
 
 ### Multiple Environments
 

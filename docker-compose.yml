@@ -5,21 +5,25 @@ services:
       - "8000:8000"
     environment:
       # Display name shown in the UI header.
-      APP_NAME: "My Application"
+      APP_NAME: "PlaygroundConsole"
 
-      # APPSETTINGS_PATH points to the base environment's appsettings.json.
-      # Add APPSETTINGS_PATH_<NAME> for each additional environment you want
-      # in the UI dropdown. Every environment is independent — point each one
-      # directly at that environment's own appsettings.json.
+      # Basic auth — set both to enable. Leave blank to disable (local dev only).
+      AUTH_USERNAME: ""
+      AUTH_PASSWORD: ""
+
+      # APPSETTINGS_PATH points to the appsettings.json you want as the base
+      # environment in the UI. Each APPSETTINGS_PATH_<NAME> registers an
+      # additional environment — point each one directly at that server or
+      # app's own appsettings.json. Every environment is independent; there
+      # is no merging or layering between them.
       APPSETTINGS_PATH: /env/base/appsettings.json
       APPSETTINGS_PATH_STAGING: /env/staging/appsettings.json
-      # APPSETTINGS_PATH_UAT: /env/uat/appsettings.json
+      APPSETTINGS_PATH_DEVELOPMENT: /env/base/appsettings.Development.json
       # APPSETTINGS_PATH_PRODUCTION: /env/production/appsettings.json
 
     volumes:
-      # Each volume maps a host path to a container path referenced above.
-      # Use forward slashes even on Windows. Remote machines can be mounted
-      # as UNC paths or network shares on the Docker host.
+      # Each volume maps a host directory containing an appsettings.json to a
+      # path inside the container. Use forward slashes even on Windows.
       - type: bind
         source: /path/to/your/app
         target: /env/base
@@ -27,10 +31,7 @@ services:
         source: /path/to/your/staging/app
         target: /env/staging
       # - type: bind
-      #   source: /path/to/your/uat/app
-      #   target: /env/uat
-      # - type: bind
-      #   source: /path/to/your/production/app
+      #   source: C:/path/to/production/app
       #   target: /env/production
 
     restart: unless-stopped
