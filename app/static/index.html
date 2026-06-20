@@ -363,6 +363,7 @@
 <script>
 let toggles = {};
 let currentEnv = 'Base';
+let envPaths = {};
 
 function detectType(val) {
   if (typeof val === 'boolean') return 'bool';
@@ -373,17 +374,28 @@ function detectType(val) {
 
 function envParam() { return `?env=${encodeURIComponent(currentEnv)}`; }
 
+function updatePathBadge() {
+  const path = envPaths[currentEnv] || '';
+  if (path) document.getElementById('pathBadge').textContent = path;
+}
+
 async function loadEnvironments() {
   try {
-    const envs = await fetch('/api/environments').then(r => r.json());
+    const [envs, paths] = await Promise.all([
+      fetch('/api/environments').then(r => r.json()),
+      fetch('/api/environments/paths').then(r => r.json()),
+    ]);
+    envPaths = paths;
     const sel = document.getElementById('envSelect');
     sel.innerHTML = envs.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
     sel.value = currentEnv;
+    updatePathBadge();
   } catch(e) { /* non-fatal */ }
 }
 
 function onEnvChange() {
   currentEnv = document.getElementById('envSelect').value;
+  updatePathBadge();
   loadToggles();
 }
 

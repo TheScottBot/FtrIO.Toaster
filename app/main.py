@@ -55,8 +55,26 @@ def _build_env_map() -> dict[str, Path]:
         env_map["Base"] = Path("/data/appsettings.json")
     return env_map
 
+def _build_label_map() -> dict[str, str]:
+    """
+    Optional display labels for the path badge.
+    APPSETTINGS_LABEL       → "Base"
+    APPSETTINGS_LABEL_FOO   → "Foo"
+    If absent for an environment, the container path is shown instead.
+    """
+    label_map: dict[str, str] = {}
+    prefix = "APPSETTINGS_LABEL"
+    for key, val in os.environ.items():
+        if key == prefix:
+            label_map["Base"] = val
+        elif key.startswith(prefix + "_"):
+            name = key[len(prefix) + 1:].title().replace("_", " ").strip()
+            label_map[name] = val
+    return label_map
+
 # Resolved once at startup; immutable thereafter.
 ENV_MAP: dict[str, Path] = _build_env_map()
+LABEL_MAP: dict[str, str] = _build_label_map()
 APPSETTINGS_PATH = ENV_MAP["Base"]
 
 
@@ -225,6 +243,14 @@ def shutdown() -> None:
 @app.get("/api/environments")
 def list_environments():
     return _discover_environments()
+
+
+@app.get("/api/environments/paths")
+def environment_paths():
+    return {
+        env: LABEL_MAP.get(env, str(_effective_file(env)))
+        for env in ENV_MAP
+    }
 
 
 @app.get("/api/toggles")

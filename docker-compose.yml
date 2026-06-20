@@ -25,6 +25,12 @@ services:
       # APPSETTINGS_PATH_STAGING: /env/staging/appsettings.json
       # APPSETTINGS_PATH_PRODUCTION: /env/production/appsettings.json
 
+      # Optional — display labels shown in the path badge for each environment.
+      # If omitted, the container path is shown instead.
+      # APPSETTINGS_LABEL: C:/path/to/your/app/appsettings.json
+      # APPSETTINGS_LABEL_STAGING: C:/path/to/your/staging/app/appsettings.json
+      # APPSETTINGS_LABEL_PRODUCTION: //prod-server/share/appsettings.json
+
     volumes:
       # Each volume maps a host directory containing an appsettings.json to a
       # path inside the container. Use forward slashes even on Windows.
