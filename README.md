@@ -6,6 +6,14 @@
 
 A lightweight Docker-hosted web UI for managing [FtrIO](https://github.com/TheScottBot/FtrIO) feature toggles. View, edit, add, and delete toggles in your `appsettings.json` without touching a file.
 
+## The FtrIO Ecosystem
+
+| Project | Role |
+|---|---|
+| [FtrIO](https://github.com/TheScottBot/FtrIO) | The core library. Weaves `[Toggle]` into your IL at compile time, reads state from `appsettings.json` at runtime, and optionally syncs from remote sources via the provider pipeline. |
+| **FtrIO.Toaster** | A lightweight web UI for managing toggles live. Writes values through `ToggleProviderBuffer` so changes flush to `appsettings.json` and are picked up instantly via `ReloadOnChange` — no file editing, no restart. |
+| [ftrio-onetwo](https://github.com/TheScottBot/ftrio-onetwo) | A .NET CLI audit tool. Scans your source tree for every toggle reference, cross-references against `appsettings.json`, and reports each toggle's state (`ON` / `OFF` / `20%` / `BLUE` / `MISSING`) with file and line number. |
+
 ## Why Toaster?
 
 Toast is binary — it's either toasted or it's not. Much like a feature toggle.
