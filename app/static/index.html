@@ -65,6 +65,61 @@
   header .health-dot.ok { background: var(--green); }
   header .health-dot.err { background: var(--red); }
 
+  .slot-enable-btn {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .slot-enable-btn:hover { color: var(--text); border-color: var(--muted); }
+
+  .slot-switcher {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .slot-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .slot-toggle {
+    display: flex;
+    border-radius: 7px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .slot-toggle button {
+    padding: 4px 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-radius: 0;
+    background: var(--surface2);
+    color: var(--muted);
+    border: none;
+    transition: background 0.15s, color 0.15s;
+  }
+  .slot-toggle button.slot-blue  { background: rgba(59,130,246,0.25); color: var(--blue); }
+  .slot-toggle button.slot-green { background: rgba(34,197,94,0.25);  color: var(--green); }
+  .slot-disable-btn {
+    font-size: 0.72rem;
+    padding: 3px 7px;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid transparent;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .slot-disable-btn:hover { color: var(--red); border-color: var(--red); }
+
   main { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
 
   .toolbar {
@@ -499,6 +554,7 @@
     <span class="app-name" id="appName" style="display:none"></span>
   </div>
   <span class="health-dot" id="healthDot"></span>
+  <div id="slotArea"></div>
   <code class="path-badge" id="pathBadge">loading…</code>
 </header>
 
@@ -577,6 +633,57 @@ let overrides = {};
 let currentEnv = 'Base';
 let envPaths = {};
 
+// ── Blue/Green slot switcher ─────────────────────────────────────────────────
+
+async function loadSlot() {
+  try {
+    const { slot } = await fetch('/api/bluegreen' + envParam()).then(r => r.json());
+    renderSlot(slot);
+  } catch { renderSlot(null); }
+}
+
+function renderSlot(slot) {
+  const area = document.getElementById('slotArea');
+  if (!slot) {
+    area.innerHTML = `<button class="slot-enable-btn" onclick="enableBlueGreen()">+ Enable Blue/Green</button>`;
+    return;
+  }
+  area.innerHTML = `
+    <div class="slot-switcher">
+      <span class="slot-label">Slot</span>
+      <div class="slot-toggle">
+        <button class="${slot==='blue'?'slot-blue':''}" onclick="setSlot('blue')">Blue</button>
+        <button class="${slot==='green'?'slot-green':''}" onclick="setSlot('green')">Green</button>
+      </div>
+      <button class="slot-disable-btn" onclick="disableBlueGreen()" title="Disable Blue/Green">✕</button>
+    </div>`;
+}
+
+async function enableBlueGreen() {
+  await setSlot('blue');
+}
+
+async function setSlot(slot) {
+  try {
+    await fetch('/api/bluegreen' + envParam(), {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({slot}),
+    });
+    renderSlot(slot);
+    toast(`Slot set to ${slot}`);
+  } catch { toast('Failed to switch slot', true); }
+}
+
+async function disableBlueGreen() {
+  if (!confirm('Remove Blue/Green config for this environment?')) return;
+  try {
+    await fetch('/api/bluegreen' + envParam(), { method: 'DELETE' });
+    renderSlot(null);
+    toast('Blue/Green disabled');
+  } catch { toast('Failed to disable Blue/Green', true); }
+}
+
 // ── Type detection ────────────────────────────────────────────────────────────
 
 function detectType(val) {
@@ -629,6 +736,7 @@ async function loadEnvironments() {
 function onEnvChange() {
   currentEnv = document.getElementById('envSelect').value;
   updatePathBadge();
+  loadSlot();
   loadToggles();
 }
 
@@ -651,6 +759,7 @@ async function load() {
     const [h] = await Promise.all([
       fetch('/api/health').then(r => r.json()),
       loadEnvironments(),
+      loadSlot(),
     ]);
     document.getElementById('pathBadge').textContent = h.path;
     const appNameEl = document.getElementById('appName');

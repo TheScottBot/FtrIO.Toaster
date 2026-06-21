@@ -476,6 +476,77 @@ def delete_override(
     return {"ok": True}
 
 
+# ── Blue/Green slot ───────────────────────────────────────────────────────────
+
+def _read_current_slot(env: str) -> str | None:
+    data = _read_file(_env_path(env))
+    return data.get("FtrIO", {}).get("BlueGreen", {}).get("CurrentSlot")
+
+
+@app.get("/api/bluegreen")
+def get_bluegreen(env: str = Query(default="Base")):
+    return {"slot": _read_current_slot(env)}
+
+
+class SlotValue(BaseModel):
+    slot: str
+
+
+@app.put("/api/bluegreen")
+def set_bluegreen(
+    body: SlotValue,
+    request: Request,
+    env: str = Query(default="Base"),
+    credentials: HTTPBasicCredentials | None = Depends(_security),
+):
+    slot = body.slot.lower()
+    if slot not in ("blue", "green"):
+        raise HTTPException(status_code=400, detail="slot must be 'blue' or 'green'")
+    user = _extract_user(request, credentials)
+    path = _env_path(env)
+    with _lock:
+        data = _read_file(path)
+        old_slot = data.get("FtrIO", {}).get("BlueGreen", {}).get("CurrentSlot")
+        data.setdefault("FtrIO", {}).setdefault("BlueGreen", {})["CurrentSlot"] = slot
+        _atomic_write(path, data)
+    _append_log_entries([{
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "environment": env,
+        "type": "bluegreen",
+        "key": "FtrIO.BlueGreen.CurrentSlot",
+        "old": old_slot,
+        "new": slot,
+        "user": user,
+    }])
+    return {"ok": True, "slot": slot}
+
+
+@app.delete("/api/bluegreen")
+def disable_bluegreen(
+    request: Request,
+    env: str = Query(default="Base"),
+    credentials: HTTPBasicCredentials | None = Depends(_security),
+):
+    user = _extract_user(request, credentials)
+    path = _env_path(env)
+    with _lock:
+        data = _read_file(path)
+        old_slot = data.get("FtrIO", {}).get("BlueGreen", {}).get("CurrentSlot")
+        if "FtrIO" in data and "BlueGreen" in data["FtrIO"]:
+            del data["FtrIO"]["BlueGreen"]
+        _atomic_write(path, data)
+    _append_log_entries([{
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "environment": env,
+        "type": "bluegreen",
+        "key": "FtrIO.BlueGreen.CurrentSlot",
+        "old": old_slot,
+        "new": None,
+        "user": user,
+    }])
+    return {"ok": True}
+
+
 # ── Log + Health ──────────────────────────────────────────────────────────────
 
 @app.get("/api/log")
