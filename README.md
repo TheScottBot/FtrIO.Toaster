@@ -25,11 +25,15 @@ It's also a nod to the Dungeon Master who runs our D&D sessions. Every good camp
 - **Boolean** on/off toggles
 - **Percentage rollout** — slider and number input in sync
 - **Blue/Green** deployment switching
+- **User targeting** — manage the `users:alice,bob` allow-list directly from the UI
+- **Attribute rules** — edit `attribute:plan equals premium` rules inline
+- **A/B test** — percentage control with optional salt; labelled to distinguish from rollout
 - Change toggle type at any time
 - Add and delete toggles
+- **Per-user overrides** — pin any toggle ON or OFF for a specific user ID, regardless of the active strategy; stored in `TogglesOverrides` and managed from a collapsible panel on each toggle card
 - Implements FtrIO's buffer logic — changes are staged in memory and flushed atomically to `appsettings.json` on the `FlushInterval` defined in your config, exactly as a native FtrIO provider would
 - Multi-environment support — manage any number of environments from a single UI instance
-- **Audit log** — every change is recorded with timestamp, environment, toggle key, old value, new value, and the acting user; viewable in-app via the Audit Log drawer
+- **Audit log** — every toggle change and override is recorded with timestamp, environment, key, old value, new value, acting user, and entry type; viewable in-app via the Audit Log drawer
 
 ## Getting Started
 
@@ -161,11 +165,17 @@ To restrict by individual email addresses instead of a domain, replace `OAUTH2_P
 
 Every toggle change is recorded to an append-only JSONL file (`changes.log`). Each line contains:
 
+Toggle change:
 ```json
-{"timestamp": "2026-06-20T14:32:01Z", "environment": "Production", "key": "PaymentV2", "old": "blue", "new": "green", "user": "alice"}
+{"timestamp": "2026-06-20T14:32:01Z", "environment": "Production", "type": "toggle", "key": "PaymentV2", "old": "blue", "new": "green", "user": "alice"}
 ```
 
-The **Audit Log** button in the toolbar opens an in-app drawer showing all recorded changes, newest first.
+Override change:
+```json
+{"timestamp": "2026-06-20T14:32:45Z", "environment": "Production", "type": "override", "key": "NewCheckoutFlow", "userId": "bob", "old": null, "new": false, "user": "alice"}
+```
+
+The **Audit Log** button in the toolbar opens an in-app drawer showing all recorded changes newest first, with toggle and override entries visually distinguished.
 
 ### Who is logged as the user?
 
@@ -189,16 +199,63 @@ volumes:
     target: /log
 ```
 
-## appsettings.json Format
+## Toggle Types
+
+| Type | Config value | UI control | Requires `IFtrIOContextAccessor` |
+|---|---|---|---|
+| Boolean | `true` / `false` | On/off switch | No |
+| Percentage rollout | `"20%"` | Slider + number input | No |
+| Blue/Green | `"blue"` / `"green"` | Two-button selector | No |
+| User targeting | `"users:alice,bob"` | Editable comma-separated list | Yes |
+| Attribute rule | `"attribute:plan equals premium"` | Editable rule string | Yes |
+| A/B test | `"ab:50"` / `"ab:50:round2"` | Percentage control + salt field | Yes (probabilistic fallback if absent) |
+
+## Per-User Overrides
+
+Any toggle can have per-user overrides stored in the `TogglesOverrides` section of `appsettings.json`. An override pins a specific user's experience to ON or OFF regardless of the active strategy — useful for QA, debugging, or VIP access.
 
 ```json
 {
   "Toggles": {
-    "MyBoolToggle":       true,
-    "MyPercentToggle":    "20%",
-    "MyBlueGreenToggle":  "blue"
+    "NewCheckoutFlow": "ab:50",
+    "SendWelcomeEmail": true
+  },
+  "TogglesOverrides": {
+    "NewCheckoutFlow": {
+      "alice":    true,
+      "bob":      false
+    },
+    "SendWelcomeEmail": {
+      "charlie":  false
+    }
   }
 }
 ```
 
-All other keys in the file (`FtrIO`, `Logging`, etc.) are left untouched.
+Each toggle card has an **Overrides** button that expands a panel to add, remove, or flip individual user overrides. Changes flush through the same buffer pipeline as regular toggle edits and are recorded in the audit log with `"type": "override"`.
+
+## appsettings.json Format
+
+```json
+{
+  "FtrIO": {
+    "ReloadOnChange": true,
+    "FlushInterval": 5
+  },
+  "Toggles": {
+    "MyBoolToggle":       true,
+    "MyPercentToggle":    "20%",
+    "MyBlueGreenToggle":  "blue",
+    "MyUserToggle":       "users:alice,bob",
+    "MyAttributeToggle":  "attribute:plan equals premium",
+    "MyABToggle":         "ab:50"
+  },
+  "TogglesOverrides": {
+    "MyABToggle": {
+      "alice": true
+    }
+  }
+}
+```
+
+All other keys in the file (`Logging`, etc.) are left untouched.
