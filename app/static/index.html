@@ -16,6 +16,9 @@
     --red: #ef4444;
     --blue: #3b82f6;
     --orange: #f97316;
+    --purple: #a78bfa;
+    --teal: #2dd4bf;
+    --yellow: #eab308;
     --text: #e6edf3;
     --muted: #8b949e;
     --radius: 8px;
@@ -62,7 +65,7 @@
   header .health-dot.ok { background: var(--green); }
   header .health-dot.err { background: var(--red); }
 
-  main { max-width: 860px; margin: 0 auto; padding: 32px 24px; }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
 
   .toolbar {
     display: flex;
@@ -122,6 +125,10 @@
     border: 1px solid transparent;
   }
   .btn-danger:hover { background: rgba(239,68,68,0.1); border-color: var(--red); }
+  .btn-sm {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+  }
 
   /* Cards */
   .toggle-list { display: flex; flex-direction: column; gap: 12px; }
@@ -130,13 +137,16 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .toggle-card:hover { border-color: var(--accent); }
+  .toggle-card-main {
     padding: 18px 20px;
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 12px 20px;
     align-items: center;
   }
-  .toggle-card:hover { border-color: var(--accent); }
 
   .toggle-name { font-weight: 600; font-size: 1rem; }
   .toggle-type-badge {
@@ -148,11 +158,14 @@
     letter-spacing: 0.5px;
     margin-left: 8px;
   }
-  .badge-bool { background: rgba(34,197,94,0.15); color: var(--green); }
-  .badge-pct  { background: rgba(249,115,22,0.15); color: var(--orange); }
-  .badge-bg   { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .badge-bool   { background: rgba(34,197,94,0.15);   color: var(--green); }
+  .badge-pct    { background: rgba(249,115,22,0.15);  color: var(--orange); }
+  .badge-bg     { background: rgba(59,130,246,0.15);  color: var(--blue); }
+  .badge-users  { background: rgba(167,139,250,0.15); color: var(--purple); }
+  .badge-attr   { background: rgba(45,212,191,0.15);  color: var(--teal); }
+  .badge-ab     { background: rgba(234,179,8,0.15);   color: var(--yellow); }
 
-  .toggle-controls { display: flex; align-items: center; gap: 10px; }
+  .toggle-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
   /* Bool switch */
   .switch { position: relative; display: inline-block; width: 48px; height: 26px; }
@@ -181,7 +194,7 @@
   .pct-wrap { display: flex; align-items: center; gap: 8px; }
   .pct-wrap input[type=range] {
     -webkit-appearance: none;
-    width: 140px; height: 4px;
+    width: 120px; height: 4px;
     background: var(--border);
     border-radius: 2px;
     outline: none;
@@ -208,6 +221,7 @@
   }
   .pct-num:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
   .pct-unit { font-size: 0.9rem; font-weight: 600; color: var(--accent); }
+  .ab-note { font-size: 0.7rem; color: var(--yellow); margin-top: 4px; }
 
   /* Blue/Green */
   .bg-toggle { display: flex; border-radius: 7px; overflow: hidden; border: 1px solid var(--border); }
@@ -220,11 +234,25 @@
     color: var(--muted);
     border: none;
   }
-  .bg-toggle button.active-blue { background: rgba(59,130,246,0.2); color: var(--blue); }
-  .bg-toggle button.active-green { background: rgba(34,197,94,0.2); color: var(--green); }
+  .bg-toggle button.active-blue  { background: rgba(59,130,246,0.2); color: var(--blue); }
+  .bg-toggle button.active-green { background: rgba(34,197,94,0.2);  color: var(--green); }
+
+  /* Users / Attribute text inputs */
+  .strategy-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: var(--text);
+    font-size: 0.85rem;
+    font-family: inherit;
+    outline: none;
+    width: 220px;
+  }
+  .strategy-input:focus { border-color: var(--accent); }
 
   /* Type switcher */
-  .type-switcher { display: flex; gap: 4px; }
+  .type-switcher { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
   .type-btn {
     font-size: 0.7rem;
     padding: 3px 8px;
@@ -234,6 +262,94 @@
     border: 1px solid var(--border);
   }
   .type-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* Override panel */
+  .override-panel {
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    padding: 14px 20px;
+    display: none;
+  }
+  .override-panel.open { display: block; }
+  .override-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .override-panel-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .override-search {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: var(--text);
+    font-size: 0.82rem;
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 8px;
+  }
+  .override-search:focus { border-color: var(--accent); }
+  .override-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(48,54,61,0.4);
+    font-size: 0.83rem;
+  }
+  .override-row:last-child { border-bottom: none; }
+  .override-userid { flex: 1; font-family: monospace; color: var(--text); }
+  .override-val-on  { color: var(--green); font-weight: 600; font-size: 0.78rem; }
+  .override-val-off { color: var(--red);   font-weight: 600; font-size: 0.78rem; }
+  .override-add-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .override-add-input {
+    flex: 1;
+    min-width: 140px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: var(--text);
+    font-size: 0.82rem;
+    font-family: inherit;
+    outline: none;
+  }
+  .override-add-input:focus { border-color: var(--accent); }
+  .override-add-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    color: var(--text);
+    font-size: 0.82rem;
+    font-family: inherit;
+    outline: none;
+  }
+  .override-toggle-btn {
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .override-toggle-btn:hover { background: var(--surface2); color: var(--text); }
+  .override-toggle-btn.has-overrides { color: var(--purple); border-color: var(--purple); }
+  .override-empty { color: var(--muted); font-size: 0.8rem; padding: 4px 0; }
 
   /* Empty state */
   .empty {
@@ -256,12 +372,12 @@
     border-radius: var(--radius);
     padding: 28px;
     width: 100%;
-    max-width: 420px;
+    max-width: 460px;
   }
   .modal h2 { font-size: 1.1rem; margin-bottom: 20px; }
   .field { margin-bottom: 16px; }
   .field label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
-  .field input, .field select {
+  .field input, .field select, .field textarea {
     width: 100%;
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -271,8 +387,10 @@
     font-size: 0.9rem;
     font-family: inherit;
     outline: none;
+    resize: vertical;
   }
-  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field-hint { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
   .warning-item {
@@ -314,7 +432,7 @@
   .log-backdrop.open { display: block; }
   .log-drawer {
     position: fixed; top: 0; right: 0; bottom: 0;
-    width: min(720px, 96vw);
+    width: min(800px, 96vw);
     background: var(--surface);
     border-left: 1px solid var(--border);
     display: flex; flex-direction: column;
@@ -354,14 +472,23 @@
   }
   .log-table tr:last-child td { border-bottom: none; }
   .log-table tr:hover td { background: var(--surface2); }
+  .log-table tr.log-row-override td { background: rgba(167,139,250,0.04); }
   .log-key { font-weight: 600; color: var(--text); }
   .log-val { font-family: monospace; font-size: 0.8rem; }
-  .log-val-old { color: var(--red); }
-  .log-val-new { color: var(--green); }
   .log-val-null { color: var(--muted); font-style: italic; }
   .log-ts { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
   .log-user { color: var(--accent); }
   .log-env { font-size: 0.75rem; color: var(--muted); }
+  .log-type-badge {
+    font-size: 0.65rem;
+    padding: 1px 6px;
+    border-radius: 99px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .log-type-toggle   { background: rgba(34,197,94,0.15);   color: var(--green); }
+  .log-type-override { background: rgba(167,139,250,0.15); color: var(--purple); }
 </style>
 </head>
 <body>
@@ -423,14 +550,19 @@
         <option value="bool">Boolean (on/off)</option>
         <option value="pct">Percentage Rollout</option>
         <option value="bg">Blue / Green</option>
+        <option value="users">User Targeting</option>
+        <option value="attr">Attribute Rule</option>
+        <option value="ab">A/B Test</option>
       </select>
     </div>
-    <div class="field" id="newValueField">
-      <label>Initial Value</label>
-      <select id="newBool">
-        <option value="true">Enabled (true)</option>
-        <option value="false">Disabled (false)</option>
-      </select>
+    <div id="newValueField">
+      <div class="field">
+        <label>Initial Value</label>
+        <select id="newBool">
+          <option value="true">Enabled (true)</option>
+          <option value="false">Disabled (false)</option>
+        </select>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeAddModal()">Cancel</button>
@@ -441,15 +573,37 @@
 
 <script>
 let toggles = {};
+let overrides = {};
 let currentEnv = 'Base';
 let envPaths = {};
 
+// ── Type detection ────────────────────────────────────────────────────────────
+
 function detectType(val) {
   if (typeof val === 'boolean') return 'bool';
-  if (typeof val === 'string' && val.endsWith('%')) return 'pct';
-  if (val === 'blue' || val === 'green') return 'bg';
+  if (typeof val === 'string') {
+    if (val.endsWith('%')) return 'pct';
+    if (val === 'blue' || val === 'green') return 'bg';
+    if (val.toLowerCase().startsWith('users:')) return 'users';
+    if (val.toLowerCase().startsWith('attribute:')) return 'attr';
+    if (val.toLowerCase().startsWith('ab:')) return 'ab';
+  }
   return 'bool';
 }
+
+const TYPE_LABELS = {
+  bool: 'Bool', pct: '%', bg: 'B/G', users: 'Users', attr: 'Attr', ab: 'A/B'
+};
+const TYPE_BADGE_CLASS = {
+  bool: 'badge-bool', pct: 'badge-pct', bg: 'badge-bg',
+  users: 'badge-users', attr: 'badge-attr', ab: 'badge-ab',
+};
+const TYPE_DEFAULTS = {
+  bool: false, pct: '0%', bg: 'blue',
+  users: 'users:', attr: 'attribute: equals ', ab: 'ab:50',
+};
+
+// ── Env + path ────────────────────────────────────────────────────────────────
 
 function envParam() { return `?env=${encodeURIComponent(currentEnv)}`; }
 
@@ -478,9 +632,14 @@ function onEnvChange() {
   loadToggles();
 }
 
+// ── Data loading ──────────────────────────────────────────────────────────────
+
 async function loadToggles() {
   try {
-    toggles = await fetch('/api/toggles' + envParam()).then(r => r.json());
+    [toggles, overrides] = await Promise.all([
+      fetch('/api/toggles' + envParam()).then(r => r.json()),
+      fetch('/api/overrides' + envParam()).then(r => r.json()),
+    ]);
     render();
   } catch(e) {
     toast('Failed to load toggles', true);
@@ -510,9 +669,11 @@ async function load() {
     }
     await loadToggles();
   } catch(e) {
-    toast('Failed to load toggles', true);
+    toast('Failed to load config', true);
   }
 }
+
+// ── Render ────────────────────────────────────────────────────────────────────
 
 function render() {
   const list = document.getElementById('toggleList');
@@ -524,34 +685,48 @@ function render() {
     return;
   }
 
-  list.innerHTML = keys.map(name => {
-    const val = toggles[name];
-    const type = detectType(val);
-    const badge = type === 'bool' ? '<span class="toggle-type-badge badge-bool">Bool</span>'
-                : type === 'pct'  ? '<span class="toggle-type-badge badge-pct">%</span>'
-                : '<span class="toggle-type-badge badge-bg">B/G</span>';
-    return `<div class="toggle-card" data-name="${esc(name)}">
+  list.innerHTML = keys.map(name => cardHtml(name, toggles[name])).join('');
+}
+
+function cardHtml(name, val) {
+  const type = detectType(val);
+  const badge = `<span class="toggle-type-badge ${TYPE_BADGE_CLASS[type]}">${TYPE_LABELS[type]}</span>`;
+  const safe = esc(name);
+  const toggleOverrides = overrides[name] || {};
+  const overrideCount = Object.keys(toggleOverrides).length;
+  const hasOverrides = overrideCount > 0;
+
+  return `<div class="toggle-card" data-name="${safe}">
+    <div class="toggle-card-main">
       <div>
-        <span class="toggle-name">${esc(name)}</span>${badge}
-        <div class="type-switcher" style="margin-top:8px">
-          <button class="type-btn ${type==='bool'?'active':''}" onclick="changeType('${esc(name)}','bool')">Bool</button>
-          <button class="type-btn ${type==='pct'?'active':''}" onclick="changeType('${esc(name)}','pct')">%</button>
-          <button class="type-btn ${type==='bg'?'active':''}" onclick="changeType('${esc(name)}','bg')">B/G</button>
+        <span class="toggle-name">${safe}</span>${badge}
+        <div class="type-switcher">
+          ${Object.keys(TYPE_LABELS).map(t =>
+            `<button class="type-btn ${type===t?'active':''}" onclick="changeType('${safe}','${t}')">${TYPE_LABELS[t]}</button>`
+          ).join('')}
         </div>
       </div>
       <div class="toggle-controls">
         ${controlHtml(name, val, type)}
-        <button class="btn-danger" onclick="removeToggle('${esc(name)}')" title="Delete">✕</button>
+        <button class="override-toggle-btn ${hasOverrides?'has-overrides':''}"
+          onclick="toggleOverridePanel('${safe}')"
+          title="User overrides">
+          Overrides${hasOverrides ? ` (${overrideCount})` : ''}
+        </button>
+        <button class="btn-danger" onclick="removeToggle('${safe}')" title="Delete">✕</button>
       </div>
-    </div>`;
-  }).join('');
+    </div>
+    <div class="override-panel" id="op-${safe}">
+      ${overridePanelHtml(name, toggleOverrides)}
+    </div>
+  </div>`;
 }
 
 function controlHtml(name, val, type) {
+  const safe = esc(name);
   if (type === 'bool') {
-    const checked = val === true ? 'checked' : '';
     return `<label class="switch">
-      <input type="checkbox" ${checked} onchange="saveBool('${esc(name)}',this.checked)"/>
+      <input type="checkbox" ${val===true?'checked':''} onchange="saveBool('${safe}',this.checked)"/>
       <span class="slider-track"></span>
     </label>`;
   }
@@ -561,22 +736,168 @@ function controlHtml(name, val, type) {
     return `<div class="pct-wrap">
       <input type="range" min="0" max="100" value="${num}" id="range-${id}"
         oninput="document.getElementById('num-${id}').value=this.value"
-        onchange="savePct('${esc(name)}',this.value)"/>
+        onchange="savePct('${safe}',this.value)"/>
       <input type="number" min="0" max="100" value="${num}" id="num-${id}" class="pct-num"
         oninput="var v=Math.min(100,Math.max(0,this.value||0));document.getElementById('range-${id}').value=v"
-        onchange="savePct('${esc(name)}',this.value)"/>
+        onchange="savePct('${safe}',this.value)"/>
       <span class="pct-unit">%</span>
     </div>`;
   }
-  // blue/green
-  const isBlue = val === 'blue';
-  return `<div class="bg-toggle">
-    <button class="${isBlue?'active-blue':''}" onclick="saveBG('${esc(name)}','blue')">Blue</button>
-    <button class="${!isBlue?'active-green':''}" onclick="saveBG('${esc(name)}','green')">Green</button>
-  </div>`;
+  if (type === 'bg') {
+    const isBlue = val === 'blue';
+    return `<div class="bg-toggle">
+      <button class="${isBlue?'active-blue':''}" onclick="saveBG('${safe}','blue')">Blue</button>
+      <button class="${!isBlue?'active-green':''}" onclick="saveBG('${safe}','green')">Green</button>
+    </div>`;
+  }
+  if (type === 'users') {
+    const list = String(val).slice('users:'.length);
+    return `<input class="strategy-input" placeholder="alice,bob,charlie"
+      value="${esc(list)}"
+      onchange="saveUsers('${safe}',this.value)"
+      title="Comma-separated user IDs"/>`;
+  }
+  if (type === 'attr') {
+    const rule = String(val).slice('attribute:'.length);
+    return `<input class="strategy-input" placeholder="plan equals premium"
+      value="${esc(rule)}"
+      onchange="saveAttr('${safe}',this.value)"
+      title="e.g. plan equals premium, email endsWith @company.com"/>`;
+  }
+  if (type === 'ab') {
+    const parts = String(val).slice('ab:'.length).split(':');
+    const num = parseInt(parts[0]) || 50;
+    const salt = parts[1] || '';
+    const id = 'ab-' + name.replace(/\W/g,'_');
+    return `<div>
+      <div class="pct-wrap">
+        <input type="range" min="0" max="100" value="${num}" id="abrange-${id}"
+          oninput="document.getElementById('abnum-${id}').value=this.value"
+          onchange="saveAB('${safe}',this.value,document.getElementById('absalt-${id}').value)"/>
+        <input type="number" min="0" max="100" value="${num}" id="abnum-${id}" class="pct-num"
+          oninput="var v=Math.min(100,Math.max(0,this.value||0));document.getElementById('abrange-${id}').value=v"
+          onchange="saveAB('${safe}',this.value,document.getElementById('absalt-${id}').value)"/>
+        <span class="pct-unit">%</span>
+      </div>
+      <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
+        <span style="font-size:0.72rem;color:var(--muted)">Salt:</span>
+        <input class="strategy-input" id="absalt-${id}" value="${esc(salt)}"
+          placeholder="optional" style="width:110px;font-size:0.78rem;padding:3px 8px"
+          onchange="saveAB('${safe}',document.getElementById('abnum-${id}').value,this.value)"/>
+      </div>
+      <div class="ab-note">A/B — users are consistently assigned</div>
+    </div>`;
+  }
+  return '';
 }
 
-function esc(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// ── Override panel ────────────────────────────────────────────────────────────
+
+function overridePanelHtml(name, toggleOverrides) {
+  const safe = esc(name);
+  const entries = Object.entries(toggleOverrides);
+
+  const rowsHtml = entries.length === 0
+    ? `<div class="override-empty">No overrides set — all users follow the toggle strategy.</div>`
+    : entries.map(([uid, val]) => `
+        <div class="override-row" data-uid="${esc(uid)}">
+          <span class="override-userid">${esc(uid)}</span>
+          <span class="${val?'override-val-on':'override-val-off'}">${val?'ON':'OFF'}</span>
+          <button class="btn-ghost btn-sm" onclick="toggleOverrideValue('${safe}','${esc(uid)}',${!val})">
+            Set ${val?'OFF':'ON'}
+          </button>
+          <button class="btn-danger btn-sm" onclick="removeOverride('${safe}','${esc(uid)}')">Remove</button>
+        </div>`).join('');
+
+  return `<div class="override-panel-header">
+      <span class="override-panel-title">User Overrides</span>
+    </div>
+    ${entries.length > 4 ? `<input class="override-search" placeholder="Search user ID…"
+      oninput="filterOverrides('${safe}',this.value)"/>` : ''}
+    <div id="override-rows-${safe}">${rowsHtml}</div>
+    <div class="override-add-row">
+      <input class="override-add-input" id="ov-uid-${safe}" placeholder="User ID" autocomplete="off"/>
+      <select class="override-add-select" id="ov-val-${safe}">
+        <option value="true">ON</option>
+        <option value="false">OFF</option>
+      </select>
+      <button class="btn-ghost btn-sm" onclick="addOverride('${safe}')">+ Add</button>
+    </div>`;
+}
+
+function toggleOverridePanel(name) {
+  const panel = document.getElementById('op-' + name);
+  panel.classList.toggle('open');
+}
+
+function filterOverrides(name, query) {
+  const rows = document.querySelectorAll(`#override-rows-${name} .override-row`);
+  rows.forEach(row => {
+    const uid = row.getAttribute('data-uid') || '';
+    row.style.display = uid.toLowerCase().includes(query.toLowerCase()) ? '' : 'none';
+  });
+}
+
+async function addOverride(name) {
+  const userId = document.getElementById('ov-uid-' + name).value.trim();
+  if (!userId) { toast('Enter a user ID', true); return; }
+  const value = document.getElementById('ov-val-' + name).value === 'true';
+  try {
+    await fetch(`/api/overrides/${encodeURIComponent(name)}/${encodeURIComponent(userId)}${envParam()}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({value}),
+    });
+    overrides[name] = overrides[name] || {};
+    overrides[name][userId] = value;
+    refreshCard(name);
+    document.getElementById('ov-uid-' + name).value = '';
+    document.getElementById('op-' + name).classList.add('open');
+    toast(`Override set for "${userId}"`);
+  } catch(e) { toast('Failed to set override', true); }
+}
+
+async function toggleOverrideValue(name, userId, newVal) {
+  try {
+    await fetch(`/api/overrides/${encodeURIComponent(name)}/${encodeURIComponent(userId)}${envParam()}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({value: newVal}),
+    });
+    if (overrides[name]) overrides[name][userId] = newVal;
+    refreshCard(name);
+    document.getElementById('op-' + name).classList.add('open');
+  } catch(e) { toast('Failed to update override', true); }
+}
+
+async function removeOverride(name, userId) {
+  try {
+    await fetch(`/api/overrides/${encodeURIComponent(name)}/${encodeURIComponent(userId)}${envParam()}`, {
+      method: 'DELETE',
+    });
+    if (overrides[name]) delete overrides[name][userId];
+    refreshCard(name);
+    document.getElementById('op-' + name).classList.add('open');
+    toast(`Override removed for "${userId}"`);
+  } catch(e) { toast('Failed to remove override', true); }
+}
+
+function refreshCard(name) {
+  const existing = document.querySelector(`.toggle-card[data-name="${esc(name)}"]`);
+  if (!existing) return;
+  const wasOpen = existing.querySelector('.override-panel.open') !== null;
+  existing.outerHTML = cardHtml(name, toggles[name]);
+  if (wasOpen) {
+    const newPanel = document.getElementById('op-' + esc(name));
+    if (newPanel) newPanel.classList.add('open');
+  }
+}
+
+// ── Save functions ────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 async function save(name, value) {
   try {
@@ -586,17 +907,22 @@ async function save(name, value) {
       body: JSON.stringify({value}),
     });
     toggles[name] = value;
-    render();
+    refreshCard(name);
   } catch(e) { toast('Save failed', true); }
 }
 
-function saveBool(name, checked) { save(name, checked); }
-function savePct(name, v) { save(name, v + '%'); }
-function saveBG(name, color) { save(name, color); }
+function saveBool(name, checked)   { save(name, checked); }
+function savePct(name, v)          { save(name, v + '%'); }
+function saveBG(name, color)       { save(name, color); }
+function saveUsers(name, list)     { save(name, 'users:' + list.trim()); }
+function saveAttr(name, rule)      { save(name, 'attribute:' + rule.trim()); }
+function saveAB(name, pct, salt)   {
+  const p = Math.min(100, Math.max(0, parseInt(pct) || 0));
+  save(name, salt ? `ab:${p}:${salt}` : `ab:${p}`);
+}
 
 function changeType(name, type) {
-  const defaults = { bool: false, pct: '0%', bg: 'blue' };
-  save(name, defaults[type]);
+  save(name, TYPE_DEFAULTS[type]);
 }
 
 async function removeToggle(name) {
@@ -623,34 +949,48 @@ function closeAddModal() { document.getElementById('addModal').style.display = '
 function updateNewValueField() {
   const type = document.getElementById('newType').value;
   const field = document.getElementById('newValueField');
-  if (type === 'bool') {
-    field.innerHTML = `<label>Initial Value</label>
-      <select id="newBool">
-        <option value="true">Enabled (true)</option>
-        <option value="false">Disabled (false)</option>
-      </select>`;
-  } else if (type === 'pct') {
-    field.innerHTML = `<label>Initial Percentage</label>
-      <input id="newPct" type="number" min="0" max="100" value="0" placeholder="0–100"/>`;
-  } else {
-    field.innerHTML = `<label>Initial Slot</label>
-      <select id="newBG">
-        <option value="blue">Blue</option>
-        <option value="green">Green</option>
-      </select>`;
-  }
+  const hints = {
+    users: 'Comma-separated user IDs, e.g. alice,bob,charlie',
+    attr:  'e.g. plan equals premium &nbsp;·&nbsp; email endsWith @company.com &nbsp;·&nbsp; country in GB,IE',
+    ab:    'Percentage of users in the treatment group (0–100)',
+  };
+  const fields = {
+    bool: `<div class="field"><label>Initial Value</label>
+             <select id="newBool">
+               <option value="true">Enabled (true)</option>
+               <option value="false">Disabled (false)</option>
+             </select></div>`,
+    pct:  `<div class="field"><label>Initial Percentage</label>
+             <input id="newPct" type="number" min="0" max="100" value="0"/></div>`,
+    bg:   `<div class="field"><label>Initial Slot</label>
+             <select id="newBG"><option value="blue">Blue</option><option value="green">Green</option></select></div>`,
+    users:`<div class="field"><label>Allowed Users</label>
+             <input id="newUsers" placeholder="alice,bob,charlie"/>
+             <div class="field-hint">${hints.users}</div></div>`,
+    attr: `<div class="field"><label>Rule</label>
+             <input id="newAttr" placeholder="plan equals premium"/>
+             <div class="field-hint">${hints.attr}</div></div>`,
+    ab:   `<div class="field"><label>Treatment Percentage</label>
+             <input id="newAB" type="number" min="0" max="100" value="50"/>
+             <div class="field-hint">${hints.ab}</div></div>`,
+  };
+  field.innerHTML = fields[type] || fields.bool;
 }
 
 async function addToggle() {
   const name = document.getElementById('newName').value.trim();
   if (!name) { toast('Enter a toggle name', true); return; }
-  if (toggles.hasOwnProperty(name)) { toast('Toggle already exists', true); return; }
+  if (Object.prototype.hasOwnProperty.call(toggles, name)) { toast('Toggle already exists', true); return; }
   const type = document.getElementById('newType').value;
   let value;
-  if (type === 'bool') value = document.getElementById('newBool').value === 'true';
-  else if (type === 'pct') value = (document.getElementById('newPct').value || '0') + '%';
-  else value = document.getElementById('newBG').value;
+  if      (type === 'bool')  value = document.getElementById('newBool').value === 'true';
+  else if (type === 'pct')   value = (document.getElementById('newPct').value || '0') + '%';
+  else if (type === 'bg')    value = document.getElementById('newBG').value;
+  else if (type === 'users') value = 'users:' + (document.getElementById('newUsers').value || '').trim();
+  else if (type === 'attr')  value = 'attribute:' + (document.getElementById('newAttr').value || '').trim();
+  else if (type === 'ab')    value = 'ab:' + (document.getElementById('newAB').value || '50');
   closeAddModal();
+  toggles[name] = value;
   await save(name, value);
   toast(`"${name}" added`);
 }
@@ -680,15 +1020,12 @@ function closeLog() {
 
 function fmtVal(v) {
   if (v === null || v === undefined) return '<span class="log-val log-val-null">—</span>';
-  const s = String(v);
-  return `<span class="log-val">${esc(s)}</span>`;
+  return `<span class="log-val">${esc(String(v))}</span>`;
 }
 
 function fmtTs(iso) {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' });
-  } catch { return iso; }
+  try { return new Date(iso).toLocaleString(undefined, {dateStyle:'short', timeStyle:'medium'}); }
+  catch { return iso; }
 }
 
 async function loadLog() {
@@ -706,21 +1043,21 @@ async function loadLog() {
 
     body.innerHTML = `<table class="log-table">
       <thead><tr>
-        <th>When</th>
-        <th>Environment</th>
-        <th>Toggle</th>
-        <th>From</th>
-        <th>To</th>
-        <th>User</th>
+        <th>When</th><th>Type</th><th>Env</th><th>Toggle</th><th>User ID</th><th>From</th><th>To</th><th>By</th>
       </tr></thead>
-      <tbody>${entries.map(e => `<tr>
-        <td class="log-ts">${fmtTs(e.timestamp)}</td>
-        <td class="log-env">${esc(e.environment)}</td>
-        <td class="log-key">${esc(e.key)}</td>
-        <td>${fmtVal(e.old)}</td>
-        <td>${fmtVal(e.new)}</td>
-        <td class="log-user">${esc(e.user)}</td>
-      </tr>`).join('')}</tbody>
+      <tbody>${entries.map(e => {
+        const isOverride = e.type === 'override';
+        return `<tr class="${isOverride?'log-row-override':''}">
+          <td class="log-ts">${fmtTs(e.timestamp)}</td>
+          <td><span class="log-type-badge ${isOverride?'log-type-override':'log-type-toggle'}">${isOverride?'Override':'Toggle'}</span></td>
+          <td class="log-env">${esc(e.environment)}</td>
+          <td class="log-key">${esc(e.key)}</td>
+          <td class="log-env">${e.userId ? esc(e.userId) : '<span style="color:var(--muted)">—</span>'}</td>
+          <td>${fmtVal(e.old)}</td>
+          <td>${fmtVal(e.new)}</td>
+          <td class="log-user">${esc(e.user)}</td>
+        </tr>`;
+      }).join('')}</tbody>
     </table>`;
   } catch(err) {
     body.innerHTML = '<div class="log-empty">Failed to load log.</div>';

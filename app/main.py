@@ -83,10 +83,14 @@ APPSETTINGS_PATH = ENV_MAP["Base"]
 
 _lock = threading.Lock()
 
-# Buffer keyed by environment name.
-# Each staged change carries the new value plus who made it and when.
 _DELETED = object()
+
+# Toggle buffer: env → toggleKey → {value, user, timestamp}
 _buffer: dict[str, dict[str, dict]] = {}
+
+# Override buffer: env → toggleKey → userId → {value, user, timestamp}
+_override_buffer: dict[str, dict[str, dict[str, dict]]] = {}
+
 _flush_timer: threading.Timer | None = None
 
 app = FastAPI(title="FtrIO Toaster", dependencies=[Depends(require_auth)])
@@ -166,6 +170,29 @@ def _read_merged_toggles(env: str) -> dict:
     return _read_file(_env_path(env)).get("Toggles", {})
 
 
+def _read_stored_overrides(env: str) -> dict:
+    return _read_file(_env_path(env)).get("TogglesOverrides", {})
+
+
+def _read_effective_overrides(env: str) -> dict:
+    """Read TogglesOverrides with staged buffer changes applied."""
+    with _lock:
+        stored = _read_stored_overrides(env)
+        staged = {k: dict(v) for k, v in _override_buffer.get(env, {}).items()}
+
+    result: dict[str, dict] = {k: dict(v) for k, v in stored.items()}
+    for toggle_key, user_changes in staged.items():
+        result.setdefault(toggle_key, {})
+        for user_id, change in user_changes.items():
+            if change["value"] is _DELETED:
+                result[toggle_key].pop(user_id, None)
+            else:
+                result[toggle_key][user_id] = change["value"]
+        if not result[toggle_key]:
+            del result[toggle_key]
+    return result
+
+
 # ── Audit log ─────────────────────────────────────────────────────────────────
 
 def _append_log_entries(entries: list[dict]) -> None:
@@ -202,24 +229,36 @@ def _flush_interval_seconds() -> float:
 
 
 def _flush() -> None:
-    global _buffer, _flush_timer
+    global _buffer, _override_buffer, _flush_timer
 
     with _lock:
-        snapshot = {env: changes.copy() for env, changes in _buffer.items()}
+        toggle_snapshot = {env: changes.copy() for env, changes in _buffer.items()}
+        override_snapshot = {
+            env: {k: dict(v) for k, v in user_map.items()}
+            for env, user_map in _override_buffer.items()
+        }
         _buffer = {}
+        _override_buffer = {}
 
-    for env, staged in snapshot.items():
-        if not staged:
+    all_envs = set(toggle_snapshot) | set(override_snapshot)
+
+    for env in all_envs:
+        staged_toggles = toggle_snapshot.get(env, {})
+        staged_overrides = override_snapshot.get(env, {})
+        if not staged_toggles and not staged_overrides:
             continue
+
         path = _env_path(env)
         try:
             with _lock:
                 data = _read_file(path)
+
+            log_entries: list[dict] = []
+
+            # ── Apply toggle changes ──
             old_toggles = data.get("Toggles", {})
             new_toggles = old_toggles.copy()
-            log_entries = []
-
-            for name, change in staged.items():
+            for name, change in staged_toggles.items():
                 value = change["value"]
                 old_val = old_toggles.get(name)
                 if value is _DELETED:
@@ -228,24 +267,64 @@ def _flush() -> None:
                 else:
                     new_toggles[name] = value
                     new_val = value
-
                 log_entries.append({
                     "timestamp": change["timestamp"],
                     "environment": env,
+                    "type": "toggle",
                     "key": name,
                     "old": old_val,
                     "new": new_val,
                     "user": change["user"],
                 })
-
             data["Toggles"] = new_toggles
+
+            # ── Apply override changes ──
+            old_overrides = data.get("TogglesOverrides", {})
+            new_overrides: dict[str, dict] = {k: dict(v) for k, v in old_overrides.items()}
+            for toggle_key, user_changes in staged_overrides.items():
+                new_overrides.setdefault(toggle_key, {})
+                for user_id, change in user_changes.items():
+                    value = change["value"]
+                    old_val = old_overrides.get(toggle_key, {}).get(user_id)
+                    if value is _DELETED:
+                        new_overrides[toggle_key].pop(user_id, None)
+                        new_val = None
+                    else:
+                        new_overrides[toggle_key][user_id] = value
+                        new_val = value
+                    log_entries.append({
+                        "timestamp": change["timestamp"],
+                        "environment": env,
+                        "type": "override",
+                        "key": toggle_key,
+                        "userId": user_id,
+                        "old": old_val,
+                        "new": new_val,
+                        "user": change["user"],
+                    })
+                if not new_overrides[toggle_key]:
+                    del new_overrides[toggle_key]
+
+            if new_overrides:
+                data["TogglesOverrides"] = new_overrides
+            elif "TogglesOverrides" in data:
+                del data["TogglesOverrides"]
+
             _atomic_write(path, data)
             _append_log_entries(log_entries)
+
         except Exception:
             with _lock:
-                merged = staged.copy()
-                merged.update(_buffer.get(env, {}))
-                _buffer[env] = merged
+                if staged_toggles:
+                    merged = staged_toggles.copy()
+                    merged.update(_buffer.get(env, {}))
+                    _buffer[env] = merged
+                if staged_overrides:
+                    for toggle_key, user_changes in staged_overrides.items():
+                        existing = _override_buffer.setdefault(env, {}).setdefault(toggle_key, {})
+                        merged_ov = user_changes.copy()
+                        merged_ov.update(existing)
+                        _override_buffer[env][toggle_key] = merged_ov
 
     _schedule_flush()
 
@@ -343,6 +422,62 @@ def delete_toggle(
     return {"ok": True}
 
 
+# ── Overrides API ─────────────────────────────────────────────────────────────
+
+@app.get("/api/overrides")
+def get_overrides(env: str = Query(default="Base")):
+    return _read_effective_overrides(env)
+
+
+class OverrideValue(BaseModel):
+    value: bool
+
+
+@app.put("/api/overrides/{toggle_name}/{user_id}")
+def set_override(
+    toggle_name: str,
+    user_id: str,
+    body: OverrideValue,
+    request: Request,
+    env: str = Query(default="Base"),
+    credentials: HTTPBasicCredentials | None = Depends(_security),
+):
+    user = _extract_user(request, credentials)
+    with _lock:
+        _override_buffer.setdefault(env, {}).setdefault(toggle_name, {})[user_id] = {
+            "value": body.value,
+            "user": user,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    return {"ok": True}
+
+
+@app.delete("/api/overrides/{toggle_name}/{user_id}")
+def delete_override(
+    toggle_name: str,
+    user_id: str,
+    request: Request,
+    env: str = Query(default="Base"),
+    credentials: HTTPBasicCredentials | None = Depends(_security),
+):
+    user = _extract_user(request, credentials)
+    with _lock:
+        stored = _read_stored_overrides(env)
+        staged = _override_buffer.get(env, {}).get(toggle_name, {})
+        in_stored = toggle_name in stored and user_id in stored[toggle_name]
+        in_buffer = user_id in staged and staged[user_id]["value"] is not _DELETED
+        if not in_stored and not in_buffer:
+            raise HTTPException(status_code=404, detail="Override not found")
+        _override_buffer.setdefault(env, {}).setdefault(toggle_name, {})[user_id] = {
+            "value": _DELETED,
+            "user": user,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    return {"ok": True}
+
+
+# ── Log + Health ──────────────────────────────────────────────────────────────
+
 @app.get("/api/log")
 def get_log(limit: int = Query(default=200, le=1000)):
     return _read_log(limit)
@@ -350,16 +485,23 @@ def get_log(limit: int = Query(default=200, le=1000)):
 
 @app.get("/api/health")
 def health():
-    pending = sum(
+    pending_toggles = sum(
         sum(1 for c in changes.values() if c["value"] is not _DELETED)
         for changes in _buffer.values()
+    )
+    pending_overrides = sum(
+        sum(
+            sum(1 for c in user_map.values() if c["value"] is not _DELETED)
+            for user_map in toggle_map.values()
+        )
+        for toggle_map in _override_buffer.values()
     )
     return {
         "path": str(APPSETTINGS_PATH),
         "exists": APPSETTINGS_PATH.exists(),
         "app_name": APP_NAME,
         "flush_interval": _flush_interval_seconds(),
-        "pending_changes": pending,
+        "pending_changes": pending_toggles + pending_overrides,
         "warnings": DIR_WARNINGS,
     }
 
